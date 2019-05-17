@@ -31,10 +31,12 @@ import traceback
 
 config = ConfigParser()
 config.read('config.ini')
-app = Client(session_name='session',
+app = Client(
+	session_name='session',
 	api_id=config['account']['api_id'],
 	api_hash=config['account']['api_hash'],
-	app_version='tgbackuper')
+	app_version='tgbackuper'
+)
 
 def encrypt(file_name: str):
 	with open(file_name, 'rb') as fin, gzip.open('.tmp.gz', 'wb') as gout:
@@ -53,8 +55,11 @@ def decrypt(file_name: str):
 def upload_file(file_name: str):
 	try:
 		msg_id = int(config['backup']['msg_id']) if config.has_option('backup', 'msg_id') and config['backup']['msg_id'] != '' else ''
-		encrypt(file_name)
-		r = app.send_document('me', '{}.encrypt'.format(file_name))
+		if config['encrypt']['switch']:
+			encrypt(file_name)
+			r = app.send_document('me', '{}.encrypt'.format(file_name))
+		else:
+			r = app.send_document('me', '{}'.format(file_name))
 		config['backup']['file_id'] = r.document.file_id
 		config['backup']['msg_id'] = str(r.message_id)
 		with open('config.ini', 'w') as fin: config.write(fin)
@@ -69,7 +74,8 @@ def download_file():
 	try:
 		app.download_media(config['backup']['file_id'], 'download_file')
 		os.rename('downloads/download_file', 'download_file')
-		decrypt('download_file')
+		if config['encrypt']['switch']:
+			decrypt('download_file')
 		Log.info('Download {} successfully', config['backup']['file_id'])
 	except:
 		Log.exc()

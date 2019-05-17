@@ -6,6 +6,7 @@ api_hash =
 filename = 
 
 [encrypt]
+switch = on
 key = 
 associated_data = tg backup
 
