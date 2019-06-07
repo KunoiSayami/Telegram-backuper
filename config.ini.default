@@ -3,17 +3,10 @@ api_id =
 api_hash =
 
 [backup]
-filename = 
+filename =
+delete_after_upload =
 
 [encrypt]
 switch = on
-key = 
+key =
 associated_data = tg backup
-
-
-[log]
-log_level = INFO
-log_file = log.log
-pre_print = None
-emerg_print =
-emerg_print_to =

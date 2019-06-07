@@ -18,16 +18,18 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
-from pyrogram import Client
+from pyrogram import Client, Message
 from libpy3.Encrypt import encrypt_by_AES_GCM as AES_GCM
-from libpy3 import Log
 import sys
 from configparser import ConfigParser
-from io import BufferedReader, BufferedWriter
 import gzip
 import shutil
 import os
 import traceback
+import logging
+import time
+
+logger = logging.getLogger('telegram-backuper')
 
 config = ConfigParser()
 config.read('config.ini')
@@ -35,12 +37,26 @@ app = Client(
 	session_name='session',
 	api_id=config['account']['api_id'],
 	api_hash=config['account']['api_hash'],
-	app_version='tgbackuper'
+	app_version='tgbackuper',
+	no_updates = True
 )
 
+class delay_update(object):
+	def __init__(self, msg: Message):
+		self.msg = msg
+		self.last_send = 0
+
+	def update_process(self, _: Client, size: int, total_size: int):
+		print('Progress: %.2f%%'%((size/total_size)*100), end = '\r')
+		if time.time() - self.last_send > 5:
+			self.msg.edit('Progress: %.2f%%'%((size/total_size)*100))
+			self.last_send = time.time()
+
 def encrypt(file_name: str):
+	logger.info('Gzipping file')
 	with open(file_name, 'rb') as fin, gzip.open('.tmp.gz', 'wb') as gout:
 		shutil.copyfileobj(fin, gout)
+	logger.info('Encrypting file')
 	with open('.tmp.gz', 'rb') as fin, open('{}.encrypt'.format(file_name), 'w') as fout:
 		fout.write(AES_GCM().b64encrypt(fin.read()))
 	os.remove('.tmp.gz')
@@ -55,18 +71,28 @@ def decrypt(file_name: str):
 def upload_file(file_name: str):
 	try:
 		msg_id = int(config['backup']['msg_id']) if config.has_option('backup', 'msg_id') and config['backup']['msg_id'] != '' else ''
+		dl = delay_update(app.send_message('me', 'Backup start'))
 		if config['encrypt']['switch']:
 			encrypt(file_name)
-			r = app.send_document('me', '{}.encrypt'.format(file_name))
+			logger.info('Sending file')
+			r = app.send_document('me', '{}.encrypt'.format(file_name), progress = dl.update_process)
 		else:
-			r = app.send_document('me', '{}'.format(file_name))
+			r = app.send_document('me', '{}'.format(file_name), progress = dl.update_process)
+		if not config.has_section('backup'):
+			config.add_section('backup')
 		config['backup']['file_id'] = r.document.file_id
 		config['backup']['msg_id'] = str(r.message_id)
+		logger.info('Backup completed!')
+		dl.msg.delete()
 		with open('config.ini', 'w') as fin: config.write(fin)
 		if msg_id != '': app.delete_messages('me', msg_id)
-		Log.info('Backup {} successfully', r.document.file_id)
+		if config['backup']['delete_after_upload']:
+			os.remove(file_name)
+			if config['encrypt']['switch']:
+				os.remove(f'{file_name}.encrypt')
+		logger.info('Backup %s successfully', r.document.file_id)
 	except:
-		Log.exc()
+		logger.debug(traceback.format_exc())
 	finally:
 		app.stop()
 
@@ -78,11 +104,13 @@ def download_file():
 			decrypt('download_file')
 		Log.info('Download {} successfully', config['backup']['file_id'])
 	except:
-		Log.exc()
+		logger.debug(traceback.format_exc())
 	finally:
 		app.stop()
 
 if __name__ == "__main__":
+	logging.getLogger("pyrogram").setLevel(logging.WARNING)
+	logging.basicConfig(level=logging.DEBUG, format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 	if len(sys.argv) == 1:
 		app.start()
 		upload_file(config['backup']['filename'])
@@ -92,13 +120,16 @@ if __name__ == "__main__":
 			if config.has_option('backup', 'file_id'):
 				download_file()
 			else:
-				print('file_id not found', file = sys.stderr)
+				logger.error('file_id not found')
 				app.stop()
+		elif sys.argv[1] == 'login':
+			app.stop()
 		else:
 			upload_file(sys.argv[1])
 	else:
 		print('''usage:
-	<program name> :			dircet upload file name which setting in configure file to telegram server
+	<program name>:				dircet upload file name which setting in configure file to telegram server
+	<program name> login:    	to login Telegram account
 	<program name> download:    to download uploaded file
 	<program name> <file name>: upload file to telegram server
 		''')
