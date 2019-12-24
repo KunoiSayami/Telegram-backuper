@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 from pyrogram import Client, Message
-from libpy3.Encrypt import encrypt_by_AES_GCM as AES_GCM
+from libpy3.Encrypt import Lib_File_AES_GCM as AES_GCM
 import sys
 from configparser import ConfigParser
 import gzip
@@ -57,14 +57,19 @@ def encrypt(file_name: str):
 	with open(file_name, 'rb') as fin, gzip.open('.tmp.gz', 'wb') as gout:
 		shutil.copyfileobj(fin, gout)
 	logger.info('Encrypting file')
-	with open('.tmp.gz', 'rb') as fin, open('{}.encrypt'.format(file_name), 'w') as fout:
-		fout.write(AES_GCM().b64encrypt(fin.read()))
+	AES_GCM().fencrypt('.tmp.gz', f'{file_name}')
 	os.remove('.tmp.gz')
 
 def decrypt(file_name: str):
+	AES_GCM().fdecrypt(file_name, 'tmp.gz')
+	with gzip.open('.tmp.gz', 'rb') as gin, open(f'{file_name}.origin', 'wb') as fout:
+		shutil.copyfileobj(gin, fout)
+	os.remove('.tmp.gz')
+
+def decryptEx(file_name: str):
 	with open(file_name, 'r') as fin, open('.tmp.gz', 'wb') as fout:
 		fout.write(AES_GCM().b64decrypt(fin.read()))
-	with gzip.open('.tmp.gz', 'rb') as gin, open('{}.origin'.format(file_name), 'wb') as fout:
+	with gzip.open('.tmp.gz', 'rb') as gin, open(f'{file_name}.origin', 'wb') as fout:
 		shutil.copyfileobj(gin, fout)
 	os.remove('.tmp.gz')
 
@@ -77,7 +82,7 @@ def upload_file(file_name: str):
 			logger.info('Sending file')
 			r = app.send_document('me', '{}.encrypt'.format(file_name), progress = dl.update_process)
 		else:
-			r = app.send_document('me', '{}'.format(file_name), progress = dl.update_process)
+			r = app.send_document('me', file_name, progress = dl.update_process)
 		if not config.has_section('backup'):
 			config.add_section('backup')
 		config['backup']['file_id'] = r.document.file_id
@@ -98,11 +103,12 @@ def upload_file(file_name: str):
 
 def download_file():
 	try:
-		app.download_media(config['backup']['file_id'], 'download_file')
+		msg = app.get_messages('me', int(config['backup']['msg_id']))
+		msg.download('download_file')
 		os.rename('downloads/download_file', 'download_file')
 		if config['encrypt']['switch']:
 			decrypt('download_file')
-		Log.info('Download {} successfully', config['backup']['file_id'])
+		Log.info('Download {} successfully', msg.document.file_id)
 	except:
 		logger.debug(traceback.format_exc())
 	finally:
