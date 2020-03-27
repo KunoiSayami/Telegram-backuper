@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# main.py
-# Copyright (C) 2018 Too-Naive
+# backup.py
+# Copyright (C) 2018-2020 KunoiSayami
 #
 # This module is part of Telegram-backuper and is released under
 # the AGPL v3 License: https://www.gnu.org/licenses/agpl-3.0.txt
