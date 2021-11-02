@@ -1,5 +1,7 @@
 # Telegram backuper
 
+## DUE TO MY ACCOUNT GOT TELEGRAM BANNED, THIS PROJECT IS NO LONGER MAINTENANCE
+
 ## Compatibility tips
 
 d818d5f78fe742db0fab066c3b9f21533e671fa1 and previous commit version is not support current encrypt method, please update to mainline version to use new feature.
